@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String            @id @default(cuid())
+  email                 String            @unique
+  nome                  String?
+  senha                 String
+  tokenVersion          Int               @default(0)
+  interests             String?
+  avatar                String?
+  materias              Materia[]
+  chatConversations     ChatConversation[]
+  progresso             Progresso[]
+  sessoes               SessaoEstudo[]
+  respostasQuestoes     RespostaQuestao[]
+  notificacoes          Notificacao[]
+  desafiosCriados       Desafio[]         @relation("desafioCriador")
+  desafiosRecebidos     Desafio[]         @relation("desafioConvidado")
+  createdAt             DateTime          @default(now())
+}
+
+model Materia {
+  id          String        @id @default(cuid())
+  nome        String
+  descricao   String?
+  cor         String?
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  flashcards  Flashcard[]
+  chats       ChatConversation[]
+  progresso   Progresso[]
+  sessoes     SessaoEstudo[]
+  questoes    Questao[]
+
+  @@index([userId])
+}
+
+model ChatConversation {
+  id            String        @id @default(cuid())
+  title         String
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  materiaId     String?
+  materia       Materia?      @relation(fields: [materiaId], references: [id])
+  messages      ChatMessage[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  lastMessageAt DateTime      @default(now())
+
+  @@index([userId, lastMessageAt])
+  @@index([materiaId])
+}
+
+model ChatMessage {
+  id        String            @id @default(cuid())
+  chatId    String
+  chat      ChatConversation  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  flow      Json?
+  createdAt DateTime          @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+model Flashcard {
+  id             String     @id @default(cuid())
+  pergunta       String
+  resposta       String
+  dificuldade    Int?       @default(1)
+  nextReview     DateTime   @default(now())
+  reviewInterval Int        @default(1)
+  lastReviewedAt DateTime?
+  materiaId      String
+  materia        Materia    @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  revisoes       Revisao[]
+  createdAt      DateTime   @default(now())
+
+  @@index([materiaId, nextReview])
+}
+
+model Revisao {
+  id            String     @id @default(cuid())
+  flashcardId   String
+  flashcard     Flashcard  @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  acertou       Boolean
+  tempoResposta Int?
+  createdAt     DateTime   @default(now())
+
+  @@index([flashcardId, createdAt])
+}
+
+model Progresso {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  materiaId  String
+  materia    Materia    @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  percentual Int        @default(0)
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([userId, materiaId])
+}
+
+model SessaoEstudo {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  materiaId  String?
+  materia    Materia?   @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  inicio     DateTime
+  fim        DateTime?
+  duracao    Int?
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, createdAt])
+  @@index([materiaId])
+}
+
+model Questao {
+  id        String            @id @default(cuid())
+  enunciado String
+  resposta  String
+  tipo      String?
+  materiaId String
+  materia   Materia           @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  respostas RespostaQuestao[]
+  createdAt DateTime          @default(now())
+
+  @@index([materiaId, createdAt])
+}
+
+model RespostaQuestao {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  questaoId     String
+  questao       Questao   @relation(fields: [questaoId], references: [id], onDelete: Cascade)
+  desafioId     String?
+  desafio       Desafio?  @relation(fields: [desafioId], references: [id], onDelete: Cascade)
+  acertou       Boolean
+  resposta      String?
+  tempoResposta Int?
+  createdAt     DateTime  @default(now())
+
+  @@unique([userId, questaoId, desafioId])
+  @@index([userId, questaoId])
+  @@index([userId, createdAt])
+  @@index([questaoId])
+  @@index([desafioId])
+}
+
+model Desafio {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  criadorId   String
+  criador     User      @relation("desafioCriador", fields: [criadorId], references: [id])
+  convidadoId String
+  convidado   User      @relation("desafioConvidado", fields: [convidadoId], references: [id])
+  questoes    Json
+  status      String    @default("pendente")
+  resultados  Json?
+  expiraEm    DateTime
+  createdAt   DateTime  @default(now())
+  concluidoEm DateTime?
+  respostas   RespostaQuestao[]
+
+  @@index([criadorId, createdAt])
+  @@index([convidadoId, createdAt])
+  @@index([expiraEm])
+}
+
+model Notificacao {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  titulo    String
+  mensagem  String
+  lida      Boolean  @default(false)
+  tipo      String
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
